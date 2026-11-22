@@ -1,0 +1,855 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title> Vessel Route Optimizer</title>
+    <meta charset="UTF-8">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        .container { display: flex; height: 100vh; }
+        
+        .sidebar {
+            width: 520px;
+            background: #1a1a2e;
+            color: white;
+            padding: 20px;
+            overflow-y: auto;
+            z-index: 10;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #0f3460, #16213e);
+            padding: 20px;
+            margin: -20px -20px 20px -20px;
+            text-align: center;
+        }
+        .header h1 { font-size: 1.2em; }
+        .ai-badge { 
+            background: #e94560; 
+            padding: 5px 12px; 
+            border-radius: 20px; 
+            font-size: 0.7em;
+            display: inline-block;
+            margin-top: 8px;
+        }
+        
+        .search-box {
+            width: 100%;
+            padding: 10px;
+            margin: 8px 0;
+            border-radius: 8px;
+            border: 1px solid #333;
+            background: #0f3460;
+            color: white;
+        }
+        
+        select {
+            width: 100%;
+            padding: 10px;
+            margin: 5px 0 15px 0;
+            border-radius: 8px;
+            border: 1px solid #333;
+            background: #0f3460;
+            color: white;
+            height: 140px;
+            font-size: 12px;
+        }
+        
+        button {
+            width: 100%;
+            padding: 12px;
+            margin: 8px 0;
+            background: #e94560;
+            color: white;
+            font-weight: bold;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+        }
+        button:hover { background: #ff6b6b; }
+        button:disabled { opacity: 0.6; cursor: not-allowed; }
+        
+        .flex-buttons {
+            display: flex;
+            gap: 10px;
+        }
+        .flex-buttons button {
+            flex: 1;
+        }
+        
+        .route-card, .weather-card, .savings-card {
+            background: #16213e;
+            border-radius: 12px;
+            padding: 15px;
+            margin-top: 15px;
+        }
+        .savings-card {
+            background: linear-gradient(135deg, #1a472a, #0d2818);
+            border: 1px solid #00ff66;
+        }
+        .metric {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px solid #2a2a4e;
+        }
+        .danger-zone-item {
+            background: rgba(233, 69, 96, 0.2);
+            border-left: 3px solid #e94560;
+            padding: 8px;
+            margin: 5px 0;
+            border-radius: 6px;
+            font-size: 0.8em;
+        }
+        .weather-item {
+            background: #0f3460;
+            padding: 10px;
+            border-radius: 6px;
+            margin: 8px 0;
+            font-size: 0.85em;
+        }
+        .savings-number {
+            font-size: 1.2em;
+            font-weight: bold;
+            color: #00ff66;
+        }
+        
+        .map-container {
+            flex: 1;
+            position: relative;
+            display: flex;
+            flex-direction: column;
+        }
+        #map {
+            flex: 1;
+        }
+        
+        .map-tabs {
+            display: flex;
+            background: #0f3460;
+            padding: 5px;
+        }
+        .tab-btn {
+            flex: 1;
+            padding: 8px;
+            background: transparent;
+            color: white;
+            border: none;
+            cursor: pointer;
+            font-size: 12px;
+        }
+        .tab-btn.active {
+            background: #e94560;
+            border-radius: 6px;
+        }
+        
+        .legend {
+            position: absolute;
+            bottom: 10px;
+            right: 10px;
+            background: rgba(0,0,0,0.85);
+            padding: 8px;
+            border-radius: 8px;
+            z-index: 1000;
+            font-size: 0.7em;
+        }
+        .info-panel {
+            position: absolute;
+            bottom: 10px;
+            left: 540px;
+            right: 200px;
+            background: rgba(0,0,0,0.85);
+            color: white;
+            padding: 8px;
+            border-radius: 8px;
+            font-size: 0.75em;
+            z-index: 1000;
+        }
+        
+        .chat-container {
+            margin-top: 15px;
+            border-top: 1px solid #333;
+            padding-top: 15px;
+        }
+        .chat-messages {
+            height: 150px;
+            overflow-y: auto;
+            background: #0f3460;
+            border-radius: 8px;
+            padding: 10px;
+            font-size: 0.8em;
+        }
+        .chat-input {
+            display: flex;
+            gap: 8px;
+            margin-top: 8px;
+        }
+        .chat-input input {
+            flex: 1;
+            padding: 8px;
+            border-radius: 8px;
+            border: none;
+        }
+        .chat-input button {
+            width: auto;
+            padding: 8px 15px;
+            margin: 0;
+        }
+        .user-msg {
+            text-align: right;
+            color: #00ff66;
+            margin: 5px 0;
+        }
+        .ai-msg {
+            text-align: left;
+            color: #ffaa00;
+            margin: 5px 0;
+        }
+        
+        .rec-danger { background: #e94560; padding: 8px; border-radius: 6px; text-align: center; }
+        .rec-warning { background: #ffaa00; color: #1a1a2e; padding: 8px; border-radius: 6px; text-align: center; }
+        .rec-success { background: #00cc66; padding: 8px; border-radius: 6px; text-align: center; }
+        
+        .loading-spinner { text-align: center; padding: 20px; }
+        .spinner {
+            border: 3px solid #333;
+            border-top: 3px solid #e94560;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 10px;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        optgroup { color: #ffaa00; font-weight: bold; }
+        option { color: white; padding: 4px; }
+        
+        .vessel-select {
+            background: #0f3460;
+            margin: 10px 0;
+        }
+        
+        .critical-text { color: #ff4444; font-weight: bold; }
+        .high-text { color: #ffaa00; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="sidebar">
+            <div class="header">
+                <h1>🚢 Vessel Route Optimization Using AI</h1>
+                <p>AI-Powered Maritime Routing with Vessel Selection</p>
+                <div class="ai-badge">🤖 6 AI Models | 100+ Ports | 10 Vessel Types</div>
+            </div>
+            
+            <input type="text" id="startSearch" class="search-box" placeholder="🔍 Search departure port...">
+            <select id="startPort" size="8">
+                <!-- ========== SOUTH ASIA ========== -->
+                <optgroup label="🌏 South Asia (11 ports)">
+                    <option value="mumbai">🇮🇳 Mumbai, India</option>
+                    <option value="chennai">🇮🇳 Chennai, India</option>
+                    <option value="kolkata">🇮🇳 Kolkata, India</option>
+                    <option value="cochin">🇮🇳 Cochin, India</option>
+                    <option value="goa">🇮🇳 Goa, India</option>
+                    <option value="vizag">🇮🇳 Visakhapatnam, India</option>
+                    <option value="tuticorin">🇮🇳 Tuticorin, India</option>
+                    <option value="mangalore">🇮🇳 Mangalore, India</option>
+                    <option value="karachi">🇵🇰 Karachi, Pakistan</option>
+                    <option value="colombo">🇱🇰 Colombo, Sri Lanka</option>
+                    <option value="chittagong">🇧🇩 Chittagong, Bangladesh</option>
+                </optgroup>
+                
+                <!-- ========== SOUTHEAST ASIA ========== -->
+                <optgroup label="🌏 Southeast Asia (12 ports)">
+                    <option value="singapore">🇸🇬 Singapore</option>
+                    <option value="port klang">🇲🇾 Port Klang, Malaysia</option>
+                    <option value="jakarta">🇮🇩 Jakarta, Indonesia</option>
+                    <option value="surabaya">🇮🇩 Surabaya, Indonesia</option>
+                    <option value="bangkok">🇹🇭 Bangkok, Thailand</option>
+                    <option value="ho chi minh">🇻🇳 Ho Chi Minh, Vietnam</option>
+                    <option value="haiphong">🇻🇳 Haiphong, Vietnam</option>
+                    <option value="manila">🇵🇭 Manila, Philippines</option>
+                    <option value="cebu">🇵🇭 Cebu, Philippines</option>
+                    <option value="davao">🇵🇭 Davao, Philippines</option>
+                    <option value="rangoon">🇲🇲 Rangoon, Myanmar</option>
+                    <option value="laem chabang">🇹🇭 Laem Chabang, Thailand</option>
+                </optgroup>
+                
+                <!-- ========== EAST ASIA ========== -->
+                <optgroup label="🌏 East Asia (18 ports)">
+                    <option value="shanghai">🇨🇳 Shanghai, China</option>
+                    <option value="ningbo">🇨🇳 Ningbo, China</option>
+                    <option value="shenzhen">🇨🇳 Shenzhen, China</option>
+                    <option value="hong kong">🇭🇰 Hong Kong</option>
+                    <option value="guangzhou">🇨🇳 Guangzhou, China</option>
+                    <option value="xiamen">🇨🇳 Xiamen, China</option>
+                    <option value="qingdao">🇨🇳 Qingdao, China</option>
+                    <option value="tianjin">🇨🇳 Tianjin, China</option>
+                    <option value="dalian">🇨🇳 Dalian, China</option>
+                    <option value="busan">🇰🇷 Busan, South Korea</option>
+                    <option value="tokyo">🇯🇵 Tokyo, Japan</option>
+                    <option value="yokohama">🇯🇵 Yokohama, Japan</option>
+                    <option value="nagoya">🇯🇵 Nagoya, Japan</option>
+                    <option value="osaka">🇯🇵 Osaka, Japan</option>
+                    <option value="kobe">🇯🇵 Kobe, Japan</option>
+                    <option value="incheon">🇰🇷 Incheon, South Korea</option>
+                    <option value="kaohsiung">🇹🇼 Kaohsiung, Taiwan</option>
+                    <option value="taichung">🇹🇼 Taichung, Taiwan</option>
+                </optgroup>
+                
+                <!-- ========== MIDDLE EAST ========== -->
+                <optgroup label="🕌 Middle East (13 ports)">
+                    <option value="dubai">🇦🇪 Dubai, UAE</option>
+                    <option value="abu dhabi">🇦🇪 Abu Dhabi, UAE</option>
+                    <option value="sharjah">🇦🇪 Sharjah, UAE</option>
+                    <option value="fujairah">🇦🇪 Fujairah, UAE</option>
+                    <option value="bandar abbas">🇮🇷 Bandar Abbas, Iran</option>
+                    <option value="muscat">🇴🇲 Muscat, Oman</option>
+                    <option value="salalah">🇴🇲 Salalah, Oman</option>
+                    <option value="sohar">🇴🇲 Sohar, Oman</option>
+                    <option value="doha">🇶🇦 Doha, Qatar</option>
+                    <option value="kuwait">🇰🇼 Kuwait</option>
+                    <option value="bahrain">🇧🇭 Bahrain</option>
+                    <option value="jeddah">🇸🇦 Jeddah, Saudi Arabia</option>
+                    <option value="dammam">🇸🇦 Dammam, Saudi Arabia</option>
+                </optgroup>
+                
+                <!-- ========== EUROPE ========== -->
+                <optgroup label="🇪🇺 Europe (15 ports)">
+                    <option value="rotterdam">🇳🇱 Rotterdam, Netherlands</option>
+                    <option value="hamburg">🇩🇪 Hamburg, Germany</option>
+                    <option value="antwerp">🇧🇪 Antwerp, Belgium</option>
+                    <option value="piraeus">🇬🇷 Piraeus, Greece</option>
+                    <option value="valencia">🇪🇸 Valencia, Spain</option>
+                    <option value="barcelona">🇪🇸 Barcelona, Spain</option>
+                    <option value="genoa">🇮🇹 Genoa, Italy</option>
+                    <option value="istanbul">🇹🇷 Istanbul, Turkey</option>
+                    <option value="felixstowe">🇬🇧 Felixstowe, UK</option>
+                    <option value="le havre">🇫🇷 Le Havre, France</option>
+                    <option value="marseille">🇫🇷 Marseille, France</option>
+                    <option value="naples">🇮🇹 Naples, Italy</option>
+                    <option value="venice">🇮🇹 Venice, Italy</option>
+                    <option value="gdansk">🇵🇱 Gdansk, Poland</option>
+                    <option value="lisbon">🇵🇹 Lisbon, Portugal</option>
+                </optgroup>
+                
+                <!-- ========== NORTH AMERICA ========== -->
+                <optgroup label="🌎 North America (11 ports)">
+                    <option value="new york">🇺🇸 New York, USA</option>
+                    <option value="los angeles">🇺🇸 Los Angeles, USA</option>
+                    <option value="vancouver">🇨🇦 Vancouver, Canada</option>
+                    <option value="houston">🇺🇸 Houston, USA</option>
+                    <option value="long beach">🇺🇸 Long Beach, USA</option>
+                    <option value="seattle">🇺🇸 Seattle, USA</option>
+                    <option value="montreal">🇨🇦 Montreal, Canada</option>
+                    <option value="miami">🇺🇸 Miami, USA</option>
+                    <option value="boston">🇺🇸 Boston, USA</option>
+                    <option value="philadelphia">🇺🇸 Philadelphia, USA</option>
+                    <option value="new orleans">🇺🇸 New Orleans, USA</option>
+                </optgroup>
+                
+                <!-- ========== SOUTH AMERICA ========== -->
+                <optgroup label="🌎 South America (8 ports)">
+                    <option value="santos">🇧🇷 Santos, Brazil</option>
+                    <option value="buenos aires">🇦🇷 Buenos Aires, Argentina</option>
+                    <option value="valparaiso">🇨🇱 Valparaiso, Chile</option>
+                    <option value="rio de janeiro">🇧🇷 Rio de Janeiro, Brazil</option>
+                    <option value="callao">🇵🇪 Callao, Peru</option>
+                    <option value="cartagena">🇨🇴 Cartagena, Colombia</option>
+                    <option value="guayaquil">🇪🇨 Guayaquil, Ecuador</option>
+                    <option value="montevideo">🇺🇾 Montevideo, Uruguay</option>
+                </optgroup>
+                
+                <!-- ========== AFRICA ========== -->
+                <optgroup label="🌍 Africa (9 ports)">
+                    <option value="durban">🇿🇦 Durban, South Africa</option>
+                    <option value="cape town">🇿🇦 Cape Town, South Africa</option>
+                    <option value="mombasa">🇰🇪 Mombasa, Kenya</option>
+                    <option value="casablanca">🇲🇦 Casablanca, Morocco</option>
+                    <option value="djibouti">🇩🇯 Djibouti</option>
+                    <option value="lagos">🇳🇬 Lagos, Nigeria</option>
+                    <option value="alexandria">🇪🇬 Alexandria, Egypt</option>
+                    <option value="dakar">🇸🇳 Dakar, Senegal</option>
+                    <option value="luanda">🇦🇴 Luanda, Angola</option>
+                </optgroup>
+                
+                <!-- ========== AUSTRALIA & OCEANIA ========== -->
+                <optgroup label="🇦🇺 Australia & Oceania (7 ports)">
+                    <option value="sydney">🇦🇺 Sydney, Australia</option>
+                    <option value="melbourne">🇦🇺 Melbourne, Australia</option>
+                    <option value="brisbane">🇦🇺 Brisbane, Australia</option>
+                    <option value="auckland">🇳🇿 Auckland, New Zealand</option>
+                    <option value="perth">🇦🇺 Perth, Australia</option>
+                    <option value="adelaide">🇦🇺 Adelaide, Australia</option>
+                    <option value="wellington">🇳🇿 Wellington, New Zealand</option>
+                </optgroup>
+            </select>
+                        
+            <input type="text" id="endSearch" class="search-box" placeholder="🔍 Search destination port...">
+            <select id="endPort" size="8">
+                <!-- ========== SOUTH ASIA ========== -->
+                <optgroup label="🌏 South Asia">
+                    <option value="chennai">🇮🇳 Chennai, India</option>
+                    <option value="mumbai">🇮🇳 Mumbai, India</option>
+                    <option value="kolkata">🇮🇳 Kolkata, India</option>
+                    <option value="cochin">🇮🇳 Cochin, India</option>
+                    <option value="colombo">🇱🇰 Colombo, Sri Lanka</option>
+                    <option value="karachi">🇵🇰 Karachi, Pakistan</option>
+                    <option value="chittagong">🇧🇩 Chittagong, Bangladesh</option>
+                </optgroup>
+                
+                <!-- ========== SOUTHEAST ASIA ========== -->
+                <optgroup label="🌏 Southeast Asia">
+                    <option value="singapore">🇸🇬 Singapore</option>
+                    <option value="jakarta">🇮🇩 Jakarta, Indonesia</option>
+                    <option value="bangkok">🇹🇭 Bangkok, Thailand</option>
+                    <option value="manila">🇵🇭 Manila, Philippines</option>
+                    <option value="ho chi minh">🇻🇳 Ho Chi Minh, Vietnam</option>
+                    <option value="port klang">🇲🇾 Port Klang, Malaysia</option>
+                </optgroup>
+                
+                <!-- ========== EAST ASIA ========== -->
+                <optgroup label="🌏 East Asia">
+                    <option value="shanghai">🇨🇳 Shanghai, China</option>
+                    <option value="hong kong">🇭🇰 Hong Kong</option>
+                    <option value="busan">🇰🇷 Busan, South Korea</option>
+                    <option value="tokyo">🇯🇵 Tokyo, Japan</option>
+                    <option value="ningbo">🇨🇳 Ningbo, China</option>
+                    <option value="osaka">🇯🇵 Osaka, Japan</option>
+                </optgroup>
+                
+                <!-- ========== MIDDLE EAST ========== -->
+                <optgroup label="🕌 Middle East">
+                    <option value="dubai">🇦🇪 Dubai, UAE</option>
+                    <option value="bandar abbas">🇮🇷 Bandar Abbas, Iran</option>
+                    <option value="muscat">🇴🇲 Muscat, Oman</option>
+                    <option value="doha">🇶🇦 Doha, Qatar</option>
+                    <option value="kuwait">🇰🇼 Kuwait</option>
+                    <option value="abu dhabi">🇦🇪 Abu Dhabi, UAE</option>
+                    <option value="salalah">🇴🇲 Salalah, Oman</option>
+                </optgroup>
+                
+                <!-- ========== EUROPE ========== -->
+                <optgroup label="🇪🇺 Europe">
+                    <option value="rotterdam">🇳🇱 Rotterdam, Netherlands</option>
+                    <option value="hamburg">🇩🇪 Hamburg, Germany</option>
+                    <option value="piraeus">🇬🇷 Piraeus, Greece</option>
+                    <option value="antwerp">🇧🇪 Antwerp, Belgium</option>
+                    <option value="valencia">🇪🇸 Valencia, Spain</option>
+                    <option value="istanbul">🇹🇷 Istanbul, Turkey</option>
+                </optgroup>
+                
+                <!-- ========== NORTH AMERICA ========== -->
+                <optgroup label="🌎 North America">
+                    <option value="new york">🇺🇸 New York, USA</option>
+                    <option value="los angeles">🇺🇸 Los Angeles, USA</option>
+                    <option value="vancouver">🇨🇦 Vancouver, Canada</option>
+                    <option value="houston">🇺🇸 Houston, USA</option>
+                    <option value="miami">🇺🇸 Miami, USA</option>
+                </optgroup>
+                
+                <!-- ========== SOUTH AMERICA ========== -->
+                <optgroup label="🌎 South America">
+                    <option value="santos">🇧🇷 Santos, Brazil</option>
+                    <option value="buenos aires">🇦🇷 Buenos Aires, Argentina</option>
+                    <option value="valparaiso">🇨🇱 Valparaiso, Chile</option>
+                    <option value="callao">🇵🇪 Callao, Peru</option>
+                </optgroup>
+                
+                <!-- ========== AFRICA ========== -->
+                <optgroup label="🌍 Africa">
+                    <option value="durban">🇿🇦 Durban, South Africa</option>
+                    <option value="cape town">🇿🇦 Cape Town, South Africa</option>
+                    <option value="mombasa">🇰🇪 Mombasa, Kenya</option>
+                    <option value="casablanca">🇲🇦 Casablanca, Morocco</option>
+                    <option value="djibouti">🇩🇯 Djibouti</option>
+                </optgroup>
+                
+                <!-- ========== AUSTRALIA ========== -->
+                <optgroup label="🇦🇺 Australia">
+                    <option value="sydney">🇦🇺 Sydney, Australia</option>
+                    <option value="melbourne">🇦🇺 Melbourne, Australia</option>
+                    <option value="brisbane">🇦🇺 Brisbane, Australia</option>
+                    <option value="auckland">🇳🇿 Auckland, New Zealand</option>
+                    <option value="perth">🇦🇺 Perth, Australia</option>
+                </optgroup>
+            </select>
+               
+            
+            <!-- Vessel Type Selection -->
+            <label style="margin-top: 10px; display: block;">🚢 Select Vessel Type</label>
+            <select id="vesselType" class="vessel-select">
+                <option value="small_cargo">🚢 Small Cargo Ship (12 knots, 15 tonnes/day)</option>
+                <option value="medium_cargo">🚢 Medium Cargo Ship (14 knots, 25 tonnes/day)</option>
+                <option value="large_cargo">🚢 Large Cargo Ship (15 knots, 45 tonnes/day)</option>
+                <option value="container_small">📦 Small Container Ship (16 knots, 40 tonnes/day)</option>
+                <option value="container_medium" selected>📦 Medium Container Ship (18 knots, 80 tonnes/day)</option>
+                <option value="container_large">📦 Large Container Ship (20 knots, 150 tonnes/day)</option>
+                <option value="tanker">⛽ Oil/Chemical Tanker (14 knots, 60 tonnes/day)</option>
+                <option value="vlcc">🛢️ VLCC - Very Large Crude Carrier (15 knots, 120 tonnes/day)</option>
+                <option value="bulk_carrier">⚓ Bulk Carrier (14 knots, 50 tonnes/day)</option>
+                <option value="roro">🚗 Ro-Ro Vessel (16 knots, 35 tonnes/day)</option>
+            </select>
+            
+            <button onclick="calculateRoute()" id="calcBtn">🤖 Calculate AI Route</button>
+            
+            <div class="flex-buttons">
+                <button onclick="animateShip()" id="animateBtn" disabled style="background:#00cc66">▶️ Animate Ship</button>
+                <button onclick="downloadReport()" id="downloadBtn" disabled style="background:#2196f3">📄 Download Report</button>
+            </div>
+            
+            <div class="flex-buttons" style="margin-top: 5px;">
+                <button onclick="showSimilarPorts()" id="similarBtn" style="background:#2196f3">🔍 Similar Ports </button>
+            </div>
+            
+            <button onclick="predictFuel()" id="fuelBtn" style="background:#00cc66">⛽ Predict Fuel </button>
+            
+            <div id="results" style="display: none;"></div>
+            
+            <!-- AI Chatbot -->
+            <div class="chat-container">
+                <h3>🤖 AI Assistant</h3>
+                <div class="chat-messages" id="chatMessages">
+                    <div class="ai-msg">🤖 Hello! Ask me about weather, risks, ETA, or fuel savings!</div>
+                </div>
+                <div class="chat-input">
+                    <input type="text" id="chatInput" placeholder="e.g., weather in Singapore or risk in Iran" onkeypress="if(event.key==='Enter') sendMessage()">
+                    <button onclick="sendMessage()">Send</button>
+                </div>
+            </div>
+        </div>
+        
+        <div class="map-container">
+            <div class="map-tabs">
+                <button class="tab-btn active" onclick="switchTab('route')">🗺️ Route Map</button>
+                <button class="tab-btn" onclick="switchTab('weather')">🌊 Weather Map</button>
+            </div>
+            <div id="map"></div>
+            <div id="weather-map" style="display: none; height: 100%;"></div>
+            <div class="legend">
+                <div><span style="background:#00ff66; width:20px; height:3px; display:inline-block;"></span> AI Route</div>
+                <div><span style="background:#ff0000; width:20px; height:3px; display:inline-block;"></span> Critical Zone</div>
+                <div><span style="background:#ffaa00; width:20px; height:3px; display:inline-block;"></span> Moderate Zone</div>
+                <div>🚢 Animated Ship</div>
+            </div>
+            <div class="info-panel" id="infoPanel">
+                Select ports and vessel type, then click "Calculate AI Route"
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        var map = L.map('map').setView([20, 65], 3);
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+            attribution: '&copy; OpenStreetMap & CartoDB',
+            subdomains: 'abcd'
+        }).addTo(map);
+        
+        var currentRoute = null;
+        var currentDangerZones = [];
+        var shipMarker = null;
+        var shipAnimation = null;
+        var currentRouteData = null;
+        var animationIndex = 0;
+        
+        var dangerZoneCoords = {
+            "Persian Gulf": [[24,48], [31,48], [31,57], [24,57]],
+            "Gulf of Oman": [[22,56.5], [27,56.5], [27,61], [22,61]],
+            "Gulf of Aden": [[11,44], [15,44], [15,52], [11,52]],
+            "Malacca Strait": [[1,97], [6,97], [6,102], [1,102]]
+        };
+        
+        function switchTab(tab) {
+            var mapDiv = document.getElementById('map');
+            var weatherDiv = document.getElementById('weather-map');
+            var tabs = document.querySelectorAll('.tab-btn');
+            
+            tabs.forEach(btn => btn.classList.remove('active'));
+            
+            if (tab === 'route') {
+                mapDiv.style.display = 'block';
+                weatherDiv.style.display = 'none';
+                map.invalidateSize();
+                tabs[0].classList.add('active');
+            } else {
+                mapDiv.style.display = 'none';
+                weatherDiv.style.display = 'block';
+                if (weatherDiv.innerHTML === '') {
+                    weatherDiv.innerHTML = `<iframe width="100%" height="100%" src="https://embed.windy.com/embed2.html?lat=20.0&lon=65.0&zoom=4&level=surface&overlay=wind&product=ecmwf&menu=&message=true&marker=&calendar=now&pressure=&type=map&location=coordinates&detail=&detailLat=20.0&detailLon=65.0&metricWind=default&metricTemp=default&radarRange=-1" frameborder="0" style="border: none;"></iframe>`;
+                }
+                tabs[1].classList.add('active');
+            }
+        }
+        
+        function animateShip() {
+            if (!currentRouteData || currentRouteData.length < 2) {
+                alert("Please calculate a route first!");
+                return;
+            }
+            if (shipMarker) map.removeLayer(shipMarker);
+            if (shipAnimation) clearInterval(shipAnimation);
+            animationIndex = 0;
+            shipMarker = L.marker(currentRouteData[0], {
+                icon: L.divIcon({ html: '🚢', iconSize: [32, 32] })
+            }).addTo(map);
+            shipAnimation = setInterval(function() {
+                if (animationIndex < currentRouteData.length) {
+                    shipMarker.setLatLng(currentRouteData[animationIndex]);
+                    animationIndex++;
+                } else {
+                    clearInterval(shipAnimation);
+                    document.getElementById('infoPanel').innerHTML = '✅ Ship arrived at destination!';
+                }
+            }, 150);
+            document.getElementById('infoPanel').innerHTML = '🚢 Ship is moving along the route...';
+        }
+        
+        function downloadReport() {
+            var distance = document.getElementById('distance')?.innerText || 'N/A';
+            var risk = document.getElementById('riskLevel')?.innerText || 'N/A';
+            var eta = document.getElementById('etaDays')?.innerText || 'N/A';
+            var fuel = document.getElementById('fuelConsumed')?.innerText || 'N/A';
+            var saved = document.getElementById('fuelSaved')?.innerText || 'N/A';
+            var cost = document.getElementById('costSaved')?.innerText || 'N/A';
+            var vessel = document.getElementById('vesselName')?.innerText || 'N/A';
+            var startPort = document.getElementById('startPort').options[document.getElementById('startPort').selectedIndex]?.text || 'Unknown';
+            var endPort = document.getElementById('endPort').options[document.getElementById('endPort').selectedIndex]?.text || 'Unknown';
+            
+            var report = `╔══════════════════════════════════════════════════════════════╗
+║                    VOYAGE REPORT                                       ║
+╠══════════════════════════════════════════════════════════════╣
+║  Vessel: ${vessel}
+║  Route: ${startPort} → ${endPort}
+║  Distance: ${distance} km
+║  Risk Level: ${risk}
+║  ETA: ${eta} days
+║  Fuel Consumed: ${fuel} tonnes
+║  Fuel Saved: ${saved} tonnes
+║  Cost Saved: $${cost} USD
+╚══════════════════════════════════════════════════════════════╝`;
+            
+            var blob = new Blob([report], {type: 'text/plain'});
+            var link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = `voyage_report_${new Date().toISOString().slice(0,19)}.txt`;
+            link.click();
+            URL.revokeObjectURL(link.href);
+        }
+        
+        async function sendMessage() {
+            var input = document.getElementById('chatInput');
+            var message = input.value.trim();
+            if (!message) return;
+            var chatDiv = document.getElementById('chatMessages');
+            chatDiv.innerHTML += `<div class="user-msg">👤 ${message}</div>`;
+            input.value = '';
+            chatDiv.scrollTop = chatDiv.scrollHeight;
+            try {
+                var response = await fetch('/api/chat', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ message: message })
+                });
+                var data = await response.json();
+                chatDiv.innerHTML += `<div class="ai-msg">🤖 ${data.response}</div>`;
+                chatDiv.scrollTop = chatDiv.scrollHeight;
+            } catch (error) {
+                chatDiv.innerHTML += `<div class="ai-msg">🤖 Sorry, error connecting. Please try again.</div>`;
+            }
+        }
+        
+        async function showSimilarPorts() {
+            var startPort = document.getElementById('startPort').value;
+            if (!startPort) { alert("Please select a port first!"); return; }
+            try {
+                var response = await fetch(`/api/similar_ports/${startPort}`);
+                var data = await response.json();
+                var resultsDiv = document.getElementById('results');
+                resultsDiv.style.display = 'block';
+                var html = `<div class="route-card">
+                    <h3>🔍 Similar Ports</h3>
+                    <div class="metric"><span>Port:</span><span>${data.port}</span></div>
+                    <div style="margin-top: 10px;"><strong>📍 Similar ports:</strong></div>`;
+                if (data.similar_ports && data.similar_ports.length > 0) {
+                    data.similar_ports.forEach(p => {
+                        html += `<div class="weather-item"><strong>${p.name}</strong> (${p.region}) - ${p.distance_km} km away</div>`;
+                    });
+                } else {
+                    html += `<div class="weather-item">No similar ports found.</div>`;
+                }
+                html += `</div>`;
+                resultsDiv.innerHTML = html + resultsDiv.innerHTML;
+            } catch (error) { alert("Error finding similar ports"); }
+        }
+        
+        async function predictFuel() {
+            var distanceElem = document.getElementById('distance');
+            if (!distanceElem || distanceElem.innerText === 'N/A') {
+                alert("Please calculate a route first!");
+                return;
+            }
+            var distance = parseInt(distanceElem.innerText.replace(/,/g, ''));
+            try {
+                var response = await fetch('/api/predict_fuel', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ distance_km: distance })
+                });
+                var data = await response.json();
+                var resultsDiv = document.getElementById('results');
+                resultsDiv.style.display = 'block';
+                var fuelHtml = `<div class="route-card" style="background: linear-gradient(135deg, #1a472a, #0d2818);">
+                    <h3>⛽ Fuel Prediction</h3>
+                    <div class="metric"><span>📏 Distance:</span><span>${data.distance_km.toLocaleString()} km</span></div>
+                    <div class="metric"><span>⛽ Predicted Fuel:</span><span class="savings-number">${data.predicted_fuel_tonnes} tonnes</span></div>
+                    <div class="metric"><span>⚖️ Fuel (Kilograms):</span><span>${data.predicted_fuel_kg} kg</span></div>
+                </div>`;
+                resultsDiv.innerHTML = fuelHtml + resultsDiv.innerHTML;
+            } catch (error) { alert("Error predicting fuel"); }
+        }
+        
+        function setupSearch(searchId, selectId) {
+            document.getElementById(searchId).addEventListener('input', function(e) {
+                var select = document.getElementById(selectId);
+                var searchText = e.target.value.toLowerCase();
+                for (var i = 0; i < select.options.length; i++) {
+                    var text = select.options[i].text.toLowerCase();
+                    select.options[i].style.display = text.includes(searchText) ? '' : 'none';
+                }
+            });
+        }
+        
+        setupSearch('startSearch', 'startPort');
+        setupSearch('endSearch', 'endPort');
+        
+        async function calculateRoute() {
+            var startPort = document.getElementById('startPort').value;
+            var endPort = document.getElementById('endPort').value;
+            var vesselType = document.getElementById('vesselType').value;
+            var resultsDiv = document.getElementById('results');
+            var infoPanel = document.getElementById('infoPanel');
+            var calcBtn = document.getElementById('calcBtn');
+            var animateBtn = document.getElementById('animateBtn');
+            var downloadBtn = document.getElementById('downloadBtn');
+            
+            if (!startPort || !endPort) { alert("Please select both ports!"); return; }
+            
+            calcBtn.disabled = true;
+            calcBtn.textContent = "🤖 AI Calculating...";
+            resultsDiv.style.display = 'block';
+            resultsDiv.innerHTML = '<div class="loading-spinner"><div class="spinner"></div><p>🤖 AI is analyzing the route...</p></div>';
+            animateBtn.disabled = true;
+            downloadBtn.disabled = true;
+            
+            try {
+                var response = await fetch('/api/route', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ start_port: startPort, end_port: endPort, vessel_type: vesselType })
+                });
+                var data = await response.json();
+                
+                if (data.success) {
+                    currentRouteData = data.route;
+                    if (currentRoute) map.removeLayer(currentRoute);
+                    currentDangerZones.forEach(zone => map.removeLayer(zone));
+                    currentDangerZones = [];
+                    
+                    if (data.danger_zones && data.danger_zones.length > 0) {
+                        data.danger_zones.forEach(zone => {
+                            var zoneName = zone.name.split(':')[1]?.trim() || zone.name.split(' ')[0];
+                            var coords = dangerZoneCoords[zoneName];
+                            if (coords) {
+                                var color = zone.name.includes("CRITICAL") ? "#ff0000" : (zone.name.includes("HIGH") ? "#ff4444" : "#ffaa00");
+                                var polygon = L.polygon(coords, { color: color, weight: 2, fillColor: color, fillOpacity: 0.3 }).addTo(map).bindPopup(zone.name);
+                                currentDangerZones.push(polygon);
+                            }
+                        });
+                    }
+                    
+                    currentRoute = L.polyline(data.route, { color: data.route_color, weight: 5, opacity: 0.9 }).addTo(map);
+                    map.fitBounds(currentRoute.getBounds());
+                    
+                    L.marker(data.route[0], { icon: L.divIcon({ html: '🚢', iconSize: [32, 32] }) }).bindPopup('<b>START: ' + data.start_port + '</b>').addTo(map);
+                    L.marker(data.route[data.route.length - 1], { icon: L.divIcon({ html: '🏁', iconSize: [32, 32] }) }).bindPopup('<b>DESTINATION: ' + data.end_port + '</b>').addTo(map);
+                    
+                    var recClass = data.risk_level === 'CRITICAL' ? 'rec-danger' : (data.risk_level === 'HIGH' ? 'rec-warning' : 'rec-success');
+                    var fuel = data.fuel_savings;
+                    
+                    var html = `
+                        <div class="route-card">
+                            <h3>📊 VOYAGE SUMMARY</h3>
+                            <div class="metric"><span>From:</span><span>${data.start_port} (${data.start_region})</span></div>
+                            <div class="metric"><span>To:</span><span>${data.end_port} (${data.end_region})</span></div>
+                            <div class="metric"><span>🚢 Vessel:</span><span id="vesselName">${fuel.vessel_name}</span></div>
+                            <div class="metric"><span>📏 Distance:</span><span id="distance">${data.distance_km.toLocaleString()} km</span></div>
+                            <div class="metric"><span>⏱️ ETA:</span><span id="etaDays">${data.eta_days}</span> days (${data.eta_hours} hours)</div>
+                            <div class="metric"><span>⚠️ Risk Level:</span><span id="riskLevel" class="${data.risk_level === 'CRITICAL' ? 'critical-text' : (data.risk_level === 'HIGH' ? 'high-text' : '')}">${data.risk_level} (${data.risk_score}/100)</span></div>
+                        </div>
+                        
+                        <div class="savings-card">
+                            <h3>💰 FUEL & COST SAVINGS</h3>
+                            <div class="metric"><span>⚡ Speed:</span><span>${fuel.speed_knots} knots (${fuel.speed_kmh} km/h)</span></div>
+                            <div class="metric"><span>⛽ Fuel/Day:</span><span>${fuel.fuel_per_day} tonnes</span></div>
+                            <div class="metric"><span>📏 Distance Saved:</span><span class="savings-number">${fuel.saved_km.toLocaleString()} km</span></div>
+                            <div class="metric"><span>💚 Fuel Saved:</span><span id="fuelSaved" class="savings-number">${fuel.fuel_saved_tonnes} tonnes</span></div>
+                            <div class="metric"><span>💰 Cost Saved:</span><span id="costSaved">$${fuel.cost_saved_usd.toLocaleString()} USD</span></div>
+                            <div class="metric"><span>🌍 CO2 Saved:</span><span>${fuel.co2_saved_tonnes} tonnes</span></div>
+                        </div>
+                        
+                        <div class="route-card">
+                            <h3>🌊 WEATHER CONDITIONS</h3>
+                            <div class="weather-item"><strong>${data.start_port}</strong><br>🌡️ ${data.weather.start.temperature}°C | 💨 ${data.weather.start.wind_speed} km/h | 🌊 ${data.weather.start.wave_height} m<br>${data.weather.start.condition}</div>
+                            <div class="weather-item"><strong>${data.end_port}</strong><br>🌡️ ${data.weather.end.temperature}°C | 💨 ${data.weather.end.wind_speed} km/h | 🌊 ${data.weather.end.wave_height} m<br>${data.weather.end.condition}</div>
+                        </div>
+                        
+                        <div class="${recClass}" style="margin-top: 10px;">${data.recommendation}</div>
+                    `;
+                    
+                    if (data.danger_zones && data.danger_zones.length > 0) {
+                        html += '<div class="route-card"><h3>⚠️ DANGER ZONES ON ROUTE</h3>';
+                        data.danger_zones.forEach(zone => {
+                            html += `<div class="danger-zone-item"><strong>${zone.name}</strong><br><small>Exercise extreme caution</small></div>`;
+                        });
+                        html += '</div>';
+                    }
+                    
+                    if (data.weather_evaluation && data.weather_evaluation.warnings && data.weather_evaluation.warnings.length > 0) {
+                        html += `<div class="route-card" style="background: rgba(233, 69, 96, 0.2);"><h3>🌊 WEATHER WARNINGS</h3>`;
+                        data.weather_evaluation.warnings.forEach(warning => {
+                            html += `<div class="danger-zone-item"><strong>⚠️ ${warning}</strong></div>`;
+                        });
+                        html += `</div>`;
+                    }
+                    
+                    if (data.weather_evaluation && data.weather_evaluation.suggestions && data.weather_evaluation.suggestions.length > 0) {
+                        html += `<div class="route-card" style="background: rgba(0, 200, 100, 0.1);"><h3>🤖 AI SAFETY SUGGESTIONS</h3>`;
+                        data.weather_evaluation.suggestions.forEach(suggestion => {
+                            html += `<div class="weather-item"><strong>💡 ${suggestion}</strong></div>`;
+                        });
+                        html += `</div>`;
+                    }
+                    
+                    resultsDiv.innerHTML = html;
+                    infoPanel.innerHTML = `✅ ${data.start_port} → ${data.end_port} | ${data.distance_km} km | ${fuel.fuel_consumed_tonnes} tonnes fuel | ETA: ${data.eta_days} days`;
+                    animateBtn.disabled = false;
+                    downloadBtn.disabled = false;
+                } else {
+                    resultsDiv.innerHTML = '<div class="route-card"><h3>❌ Error</h3><p>' + data.error + '</p></div>';
+                }
+            } catch (error) {
+                resultsDiv.innerHTML = '<div class="route-card"><h3>❌ Error</h3><p>Server error</p></div>';
+            } finally {
+                calcBtn.disabled = false;
+                calcBtn.textContent = "🤖 Calculate AI Route";
+            }
+        }
+    </script>
+</body>
+</html>
