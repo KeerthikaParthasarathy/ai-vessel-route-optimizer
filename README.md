@@ -135,3 +135,28 @@ Interests: Python Development | Full Stack Development | Machine Learning | Data
 ---
 
 ⭐ If you find this project interesting, consider giving this repository a star!
+## 📸 Application Screenshots
+
+### 1. Main Dashboard
+![Dashboard](screenshots/01-dashboard.png)
+
+### 2. Route Selection
+![Route Selection](screenshots/02-route-selection.png)
+
+### 3. AI Route Map
+![AI Route Map](screenshots/03-ai-route-map.png)
+
+### 4. Fuel Prediction
+![Fuel Prediction](screenshots/04-fuel-prediction.png)
+
+### 5. Similar Port Recommendations
+![Similar Ports](screenshots/05-similar-ports.png)
+
+### 6. Weather Analysis
+![Weather Analysis](screenshots/06-weather-analysis.png)
+
+### 7. Maritime Risk Analysis
+![Risk Analysis](screenshots/07-risk-analysis.png)
+
+### 8. AI Assistant
+![AI Assistant](screenshots/08-ai-assistant.png)
